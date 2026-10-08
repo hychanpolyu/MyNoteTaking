@@ -2,6 +2,7 @@ import json
 import os
 
 from dotenv import load_dotenv
+from json_repair import repair_json
 from openai import OpenAI
 
 load_dotenv()
@@ -61,7 +62,11 @@ def translate_note(title: str, content: str, target_language: str) -> dict[str, 
     if not message:
         raise ValueError('The translation service returned an empty response')
 
-    translated = json.loads(message)
+    try:
+        translated = json.loads(message)
+    except json.JSONDecodeError:
+        # Free models sometimes wrap JSON in Markdown or omit a quote.
+        translated = json.loads(repair_json(message))
     if not isinstance(translated, dict):
         raise ValueError('The translation service returned an invalid response')
 
