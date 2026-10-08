@@ -168,6 +168,8 @@
         .editor-actions {
             display: flex;
             gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -198,6 +200,70 @@
         .btn-delete:hover {
             background: #c82333;
             transform: translateY(-1px);
+        }
+
+        .language-select {
+            padding: 8px 30px 8px 10px;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: white;
+            color: #333;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .btn-translate {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-translate:hover {
+            background: #5369d6;
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled,
+        .language-select:disabled {
+            opacity: 0.6;
+            cursor: wait;
+            transform: none;
+        }
+
+        .translation-in-progress .note-item {
+            pointer-events: none;
+            opacity: 0.55;
+        }
+
+        .attachment-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .attachment-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .attachment-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: #f1f3f5;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .attachment-item button {
+            border: none;
+            background: transparent;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 15px;
         }
 
         .form-group {
@@ -283,6 +349,50 @@
             border: 1px solid #c3e6cb;
         }
 
+        .auth-panel {
+            width: min(440px, 100%);
+            margin: 10vh auto 0;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.96);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+        }
+
+        .auth-panel h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .auth-form {
+            display: grid;
+            gap: 12px;
+        }
+
+        .auth-form + .auth-form {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .auth-form .btn {
+            padding: 11px 16px;
+            background: #667eea;
+            color: white;
+        }
+
+        .user-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .btn-logout {
+            background: #6c757d;
+            color: white;
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .main-content {
@@ -324,10 +434,30 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="auth-panel" id="authPanel">
+        <h2>Sign in to NoteTaker</h2>
+        <div id="authMessage"></div>
+        <form class="auth-form" id="loginForm">
+            <input class="form-input" id="loginUsername" type="text" placeholder="Username" required>
+            <input class="form-input" id="loginPassword" type="password" placeholder="Password" required>
+            <button class="btn" type="submit">Sign in</button>
+        </form>
+        <form class="auth-form" id="registerForm">
+            <input class="form-input" id="registerUsername" type="text" placeholder="New username" required>
+            <input class="form-input" id="registerEmail" type="email" placeholder="Email" required>
+            <input class="form-input" id="registerPassword" type="password" placeholder="Password (8+ characters)" minlength="8" required>
+            <button class="btn" type="submit">Create account</button>
+        </form>
+    </div>
+
+    <div class="container" id="appContainer" style="display: none;">
         <div class="header">
             <h1>📝 NoteTaker</h1>
             <p>Organize your thoughts, capture your ideas</p>
+            <div class="user-bar">
+                <span id="currentUser"></span>
+                <button class="btn btn-logout" id="logoutBtn">Log out</button>
+            </div>
         </div>
 
         <div class="main-content">
@@ -344,6 +474,15 @@
                 <div class="editor-header">
                     <h2 class="editor-title" id="editorTitle">Select a note to edit</h2>
                     <div class="editor-actions" id="editorActions" style="display: none;">
+                        <select class="language-select" id="languageSelect" aria-label="Translation language">
+                            <option value="Chinese (simplified)">Chinese (simplified)</option>
+                            <option value="Chinese (traditional)">Chinese (traditional)</option>
+                            <option value="English">English</option>
+                            <option value="Japanese">Japanese</option>
+                            <option value="Korean">Korean</option>
+                            <option value="Spanish">Spanish</option>
+                        </select>
+                        <button class="btn btn-translate" id="translateBtn">🌐 Translate</button>
                         <button class="btn btn-save" id="saveBtn">💾 Save</button>
                         <button class="btn btn-delete" id="deleteBtn">🗑️ Delete</button>
                     </div>
@@ -361,6 +500,15 @@
                         <label class="form-label" for="noteContent">Content</label>
                         <textarea class="form-textarea" id="noteContent" placeholder="Start writing your note..."></textarea>
                     </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="attachmentInput">Attachments</label>
+                        <div class="attachment-controls">
+                            <input type="file" id="attachmentInput" accept="image/*,.pdf,.doc,.docx,.md,.txt,.xlsx,.zip">
+                            <button class="btn" id="attachBtn" type="button">📎 Attach</button>
+                        </div>
+                        <div class="attachment-list" id="attachmentList"></div>
+                    </div>
                 </div>
 
                 <div class="empty-state" id="emptyState">
@@ -377,16 +525,23 @@
                 this.notes = [];
                 this.currentNote = null;
                 this.isLoading = false;
+                this.isTranslating = false;
+                this.user = null;
                 this.init();
             }
 
             async init() {
                 this.bindEvents();
-                await this.loadNotes();
+                await this.loadSession();
             }
 
             bindEvents() {
+                document.getElementById('loginForm').addEventListener('submit', (event) => this.login(event));
+                document.getElementById('registerForm').addEventListener('submit', (event) => this.register(event));
+                document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
                 document.getElementById('newNoteBtn').addEventListener('click', () => this.createNewNote());
+                document.getElementById('translateBtn').addEventListener('click', () => this.translateNote());
+                document.getElementById('attachBtn').addEventListener('click', () => this.uploadAttachment());
                 document.getElementById('saveBtn').addEventListener('click', () => this.saveNote());
                 document.getElementById('deleteBtn').addEventListener('click', () => this.deleteNote());
                 document.getElementById('searchBox').addEventListener('input', (e) => this.searchNotes(e.target.value));
@@ -404,6 +559,76 @@
                 
                 document.getElementById('noteTitle').addEventListener('input', autoSave);
                 document.getElementById('noteContent').addEventListener('input', autoSave);
+            }
+
+            async loadSession() {
+                try {
+                    const response = await fetch('/api/auth/me');
+                    if (!response.ok) return this.showAuth();
+                    this.user = await response.json();
+                    this.showApp();
+                    await this.loadNotes();
+                } catch (error) {
+                    this.showAuthMessage('Cannot connect to the server. Start Flask and refresh this page.');
+                }
+            }
+
+            showAuth() {
+                document.getElementById('authPanel').style.display = 'block';
+                document.getElementById('appContainer').style.display = 'none';
+            }
+
+            showApp() {
+                document.getElementById('authPanel').style.display = 'none';
+                document.getElementById('appContainer').style.display = 'flex';
+                document.getElementById('currentUser').textContent = `Signed in as ${this.user.username}`;
+            }
+
+            showAuthMessage(message, type = 'error') {
+                document.getElementById('authMessage').innerHTML = `<div class="${type}">${message}</div>`;
+            }
+
+            async login(event) {
+                event.preventDefault();
+                await this.authenticate('/api/auth/login', {
+                    username: document.getElementById('loginUsername').value,
+                    password: document.getElementById('loginPassword').value
+                });
+            }
+
+            async register(event) {
+                event.preventDefault();
+                await this.authenticate('/api/auth/register', {
+                    username: document.getElementById('registerUsername').value,
+                    email: document.getElementById('registerEmail').value,
+                    password: document.getElementById('registerPassword').value
+                });
+            }
+
+            async authenticate(endpoint, credentials) {
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(credentials)
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || 'Authentication failed');
+                    this.user = result;
+                    this.showApp();
+                    await this.loadNotes();
+                } catch (error) {
+                    this.showAuthMessage(`Authentication error: ${error.message}`);
+                }
+            }
+
+            async logout() {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                this.user = null;
+                this.notes = [];
+                this.currentNote = null;
+                this.hideEditor();
+                this.showAuth();
             }
 
             async loadNotes() {
@@ -443,6 +668,7 @@
             }
 
             async selectNote(noteId) {
+                if (this.isTranslating) return;
                 const note = this.notes.find(n => n.id === noteId);
                 if (!note) return;
 
@@ -453,6 +679,7 @@
                 document.getElementById('noteTitle').value = note.title || '';
                 document.getElementById('noteContent').value = note.content || '';
                 document.getElementById('editorTitle').textContent = note.title || 'Untitled Note';
+                this.renderAttachments(note.attachments || []);
             }
 
             createNewNote() {
@@ -467,6 +694,7 @@
                 this.showEditor();
                 document.getElementById('noteTitle').value = '';
                 document.getElementById('noteContent').value = '';
+                this.renderAttachments([]);
                 document.getElementById('editorTitle').textContent = 'New Note';
                 document.getElementById('noteTitle').focus();
                 
@@ -547,6 +775,102 @@
                     }
                 } catch (error) {
                     this.showMessage(`Error saving note: ${error.message}`, 'error');
+                }
+            }
+
+            async translateNote() {
+                if (!this.currentNote) return;
+
+                const translateButton = document.getElementById('translateBtn');
+                const languageSelect = document.getElementById('languageSelect');
+                this.isTranslating = true;
+                document.querySelector('.main-content').classList.add('translation-in-progress');
+                translateButton.disabled = true;
+                languageSelect.disabled = true;
+                this.showMessage('Translating note...', 'loading');
+
+                try {
+                    const response = await fetch('/api/translate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: document.getElementById('noteTitle').value,
+                            content: document.getElementById('noteContent').value,
+                            target_language: languageSelect.value
+                        })
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(result.error || 'Translation failed');
+
+                    document.getElementById('noteTitle').value = result.title;
+                    document.getElementById('noteContent').value = result.content;
+                    document.getElementById('editorTitle').textContent = result.title || 'Untitled Note';
+                    this.showMessage('Note translated successfully. Click Save to keep the translation.', 'success');
+                } catch (error) {
+                    const message = error.message === 'Failed to fetch'
+                        ? 'Cannot reach the Flask server. Start it with: python src/main.py'
+                        : `Error translating note: ${error.message}`;
+                    this.showMessage(message, 'error');
+                } finally {
+                    this.isTranslating = false;
+                    document.querySelector('.main-content').classList.remove('translation-in-progress');
+                    translateButton.disabled = false;
+                    languageSelect.disabled = false;
+                }
+            }
+
+            async uploadAttachment() {
+                if (!this.currentNote || !this.currentNote.id) {
+                    this.showMessage('Save the note before attaching a file.', 'error');
+                    return;
+                }
+
+                const input = document.getElementById('attachmentInput');
+                if (!input.files.length) {
+                    this.showMessage('Choose an image or document first.', 'error');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', input.files[0]);
+                try {
+                    const response = await fetch(`/api/notes/${this.currentNote.id}/attachments`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || 'Attachment upload failed');
+                    this.currentNote.attachments = [...(this.currentNote.attachments || []), result];
+                    const noteIndex = this.notes.findIndex(note => note.id === this.currentNote.id);
+                    if (noteIndex >= 0) this.notes[noteIndex].attachments = this.currentNote.attachments;
+                    this.renderAttachments(this.currentNote.attachments);
+                    input.value = '';
+                    this.showMessage('Attachment added.', 'success');
+                } catch (error) {
+                    this.showMessage(`Error attaching file: ${error.message}`, 'error');
+                }
+            }
+
+            renderAttachments(attachments) {
+                const attachmentList = document.getElementById('attachmentList');
+                attachmentList.innerHTML = attachments.map(attachment => `
+                    <span class="attachment-item">
+                        <a href="${attachment.url}" target="_blank" rel="noopener">${this.escapeHtml(attachment.name)}</a>
+                        <button type="button" title="Remove attachment" onclick="noteTaker.deleteAttachment(${attachment.id})">&times;</button>
+                    </span>
+                `).join('');
+            }
+
+            async deleteAttachment(attachmentId) {
+                try {
+                    const response = await fetch(`/api/attachments/${attachmentId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('Attachment deletion failed');
+                    this.currentNote.attachments = this.currentNote.attachments.filter(
+                        attachment => attachment.id !== attachmentId
+                    );
+                    this.renderAttachments(this.currentNote.attachments);
+                } catch (error) {
+                    this.showMessage(`Error removing attachment: ${error.message}`, 'error');
                 }
             }
 

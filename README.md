@@ -1,208 +1,192 @@
-# NoteTaker - Personal Note Management Application
+# NoteTaker
 
-A modern, responsive web application for managing personal notes with a beautiful user interface and full CRUD functionality.
+A Flask and SQLite note-taking application with CRUD operations, search, auto-save, and OpenRouter-powered translation.
 
-## 🌟 Features
+## Features
 
-- **Create Notes**: Add new notes with titles and rich content
-- **Edit Notes**: Update existing notes with real-time editing
-- **Delete Notes**: Remove notes you no longer need
-- **Search Notes**: Find notes quickly by searching titles and content
-- **Auto-save**: Notes are automatically saved as you type
-- **Responsive Design**: Works perfectly on desktop and mobile devices
-- **Modern UI**: Beautiful gradient design with smooth animations
-- **Real-time Updates**: Instant feedback and updates
+- Create, edit, save, search, and delete notes.
+- Auto-save existing notes two seconds after editing.
+- Translate a note title and content into Chinese (simplified), Chinese (traditional), English, Japanese, Korean, or Spanish.
+- Attach images and common documents to saved notes.
+- User accounts with hashed passwords and private notes.
+- Responsive browser interface.
 
-## 🚀 Live Demo
+## Project Structure
 
-The application is deployed and accessible at: **https://3dhkilc88dkk.manus.space**
-
-## 🛠 Technology Stack
-
-### Frontend
-- **HTML5**: Semantic markup structure
-- **CSS3**: Modern styling with gradients, animations, and responsive design
-- **JavaScript (ES6+)**: Interactive functionality and API communication
-
-### Backend
-- **Python Flask**: Web framework for API endpoints
-- **SQLAlchemy**: ORM for database operations
-- **Flask-CORS**: Cross-origin resource sharing support
-
-### Database
-- **SQLite**: Lightweight, file-based database for data persistence
-
-## 📁 Project Structure
-
-```
-notetaking-app/
-├── src/
-│   ├── models/
-│   │   ├── user.py          # User model (template)
-│   │   └── note.py          # Note model with database schema
-│   ├── routes/
-│   │   ├── user.py          # User API routes (template)
-│   │   └── note.py          # Note API endpoints
-│   ├── static/
-│   │   ├── index.html       # Frontend application
-│   │   └── favicon.ico      # Application icon
-│   ├── database/
-│   │   └── app.db           # SQLite database file
-│   └── main.py              # Flask application entry point
-├── venv/                    # Python virtual environment
-├── requirements.txt         # Python dependencies
-└── README.md               # This file
+```text
+MyNoteTaking/
+|- src/
+|  |- main.py              Flask application entry point
+|  |- translator.py        OpenRouter translation client
+|  |- models/              SQLAlchemy models
+|  |- routes/              Flask API blueprints
+|  `- static/index.html     Browser application
+|- database/app.db         Local SQLite database, created automatically
+|- requirements.txt         Python dependencies
+|- .env                    Local credentials, ignored by Git
+`- README.md
 ```
 
-## 🔧 Local Development Setup
+## Setup Tutorial
 
-### Prerequisites
-- Python 3.11+
-- pip (Python package manager)
+### 1. Create the Conda environment
 
-### Installation Steps
+From the project root:
 
-1. **Clone or download the project**
-   ```bash
-   python -m venv venv
-   ```
+```powershell
+conda create --name COMP5241 python=3.11 pip --yes
+conda activate COMP5241
+```
 
-2. **Activate the virtual environment**
-   ```bash
-   source venv/bin/activate
-   ```
+If the environment already exists, only run `conda activate COMP5241`.
 
-   Remark: On Windows, use `venv\Scripts\activate`
+### 2. Install dependencies
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```powershell
+python -m pip install -r requirements.txt
+```
 
-4. **Run the application**
-   ```bash
-   python src/main.py
-   ```
+### 3. Configure OpenRouter
 
-5. **Access the application**
-   - Open your browser and go to `http://localhost:5001`
+Create `.env` in the project root. Never commit this file or place the API key in frontend code.
 
-## 📡 API Endpoints
+```dotenv
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+```
 
-### Notes API
-- `GET /api/notes` - Get all notes
-- `POST /api/notes` - Create a new note
-- `GET /api/notes/<id>` - Get a specific note
-- `PUT /api/notes/<id>` - Update a note
-- `DELETE /api/notes/<id>` - Delete a note
-- `GET /api/notes/search?q=<query>` - Search notes
+The repository already ignores `.env` through `.gitignore`.
 
-### Request/Response Format
+### 4. Start the application
+
+Run this command from the project root:
+
+```powershell
+python src/main.py
+```
+
+Open `http://localhost:5001` in a browser.
+
+## Account Tutorial
+
+1. Create an account with a username, email, and password of at least eight characters.
+2. Sign in with the username and password.
+3. Only notes belonging to the signed-in account are returned by the API and shown in the sidebar.
+4. Use **Log out** before another person signs in on the same browser.
+
+Passwords are stored as one-way Werkzeug password hashes. The application never stores or returns a plaintext password.
+
+## Translation Tutorial
+
+1. Select an existing note or click **New Note**.
+2. Enter a title and content.
+3. Select the target language beside the **Translate** button.
+4. Click **Translate**.
+5. Check the translated title and content in the editor.
+6. Click **Save** to persist the translated note.
+
+## Attachment Tutorial
+
+1. Save the note first. New notes must have an ID before a file can be attached.
+2. Choose an image or document in the **Attachments** section.
+3. Click **Attach**.
+4. Click an attached filename to open it, or click `x` to remove it.
+
+Supported types include common images, PDF, Word, Markdown, text, Excel, and ZIP files. Each upload is limited to 10 MB and is stored under the local `uploads` directory.
+
+The browser sends the text to Flask at `/api/translate`. The server reads the OpenRouter key from `.env`, calls the configured model in `src/translator.py`, and returns JSON containing `title` and `content`. The key is never sent to the browser.
+
+## API Endpoints
+
+### Notes
+
+- `GET /api/notes` - List notes, newest updated first.
+- `POST /api/notes` - Create a note with `title` and `content`.
+- `GET /api/notes/<id>` - Get one note.
+- `PUT /api/notes/<id>` - Update a note.
+- `DELETE /api/notes/<id>` - Delete a note.
+- `GET /api/notes/search?q=<query>` - Search note titles and content.
+- `POST /api/notes/<id>/attachments` - Upload an image or document using multipart field `file`.
+- `GET /api/attachments/<id>` - Open an attachment.
+- `DELETE /api/attachments/<id>` - Delete an attachment.
+
+### Authentication
+
+- `POST /api/auth/register` - Create an account and sign in.
+- `POST /api/auth/login` - Start a session.
+- `GET /api/auth/me` - Get the current account.
+- `POST /api/auth/logout` - End the current session.
+
+### Translation
+
+`POST /api/translate`
+
+Request:
+
 ```json
 {
-  "id": 1,
-  "title": "My Note Title",
-  "content": "Note content here...",
-  "created_at": "2025-09-03T11:26:38.123456",
-  "updated_at": "2025-09-03T11:27:30.654321"
+  "title": "Prepare BBQ",
+  "content": "Pork\nChicken\nVegetables",
+  "target_language": "Chinese (traditional)"
 }
 ```
 
-## 🎨 User Interface Features
+Response:
 
-### Sidebar
-- **Search Box**: Real-time search through note titles and content
-- **New Note Button**: Create new notes instantly
-- **Notes List**: Scrollable list of all notes with previews
-- **Note Previews**: Show title, content preview, and last modified date
-
-### Editor Panel
-- **Title Input**: Edit note titles
-- **Content Textarea**: Rich text editing area
-- **Save Button**: Manual save option (auto-save also available)
-- **Delete Button**: Remove notes with confirmation
-- **Real-time Updates**: Changes reflected immediately
-
-### Design Elements
-- **Gradient Background**: Beautiful purple gradient backdrop
-- **Glass Morphism**: Semi-transparent panels with backdrop blur
-- **Smooth Animations**: Hover effects and transitions
-- **Responsive Layout**: Adapts to different screen sizes
-- **Modern Typography**: Clean, readable font stack
-
-## 🔒 Database Schema
-
-### Notes Table
-```sql
-CREATE TABLE note (
-    id INTEGER PRIMARY KEY,
-    title VARCHAR(200) NOT NULL,
-    content TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+```json
+{
+  "title": "translated title",
+  "content": "translated content"
+}
 ```
 
-## 🚀 Deployment
+The actual response depends on the LLM. Invalid language selections and empty notes return `400`. OpenRouter or translation failures return `502`.
 
-The application is configured for easy deployment with:
-- CORS enabled for cross-origin requests
-- Host binding to `0.0.0.0` for external access
-- Production-ready Flask configuration
-- Persistent SQLite database
+## Database
 
-## 🔧 Configuration
+The app creates the local SQLite database and tables automatically on startup. Existing notes without an owner are assigned to the first account registered after authentication is enabled.
 
-### Environment Variables
-- `FLASK_ENV`: Set to `development` for debug mode
-- `SECRET_KEY`: Flask secret key for sessions
+## Neon Cloud Database
 
-### Database Configuration
-- Database file: `src/database/app.db`
-- Automatic table creation on first run
-- SQLAlchemy ORM for database operations
+Neon is a hosted PostgreSQL database. The Flask application already supports it through `DATABASE_URL`.
 
-## 📱 Browser Compatibility
+1. Create a project and database in Neon.
+2. Copy the pooled connection string from Neon. It normally starts with `postgresql://` and includes `sslmode=require`.
+3. Add it to `.env` without committing the file:
 
-- Chrome/Chromium (recommended)
-- Firefox
-- Safari
-- Edge
-- Mobile browsers (iOS Safari, Chrome Mobile)
+```dotenv
+SECRET_KEY=use-a-long-random-value
+DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+```
 
-## 🤝 Contributing
+4. Install dependencies and start the app:
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+```powershell
+python -m pip install -r requirements.txt
+python src/main.py
+```
 
-## 📄 License
+The `psycopg` driver connects SQLAlchemy to Neon, and the tables are created on startup for this coursework app. For production, use Alembic migrations instead of relying on `db.create_all()`.
 
-This project is open source and available under the MIT License.
+Neon stores users, notes, and attachment metadata. The current attachment files are stored on the local disk under `uploads`, so a deployed server may lose them after restart. For production attachments, store the files in object storage such as S3, Cloudflare R2, or Supabase Storage and keep only the URL and metadata in Neon.
 
-## 🆘 Support
+## Troubleshooting
 
-For issues or questions:
-1. Check the browser console for error messages
-2. Verify the Flask server is running
-3. Ensure all dependencies are installed
-4. Check network connectivity for the deployed version
+- `OPENROUTER_API_KEY is not configured`: Check that `.env` is in the project root and that the environment is active.
+- `401 Authentication required`: Sign in or register before loading notes.
+- `SECRET_KEY` warning: Set a long random `SECRET_KEY` in `.env` before deployment.
+- Neon connection errors: Verify `DATABASE_URL`, `sslmode=require`, and that the `psycopg` dependency is installed.
+- Translation fails with an API error: Check the API key, model availability, network connection, and OpenRouter limits.
+- The browser cannot connect: Confirm that `python src/main.py` is still running and use `http://localhost:5001`.
+- `ModuleNotFoundError`: Activate `COMP5241`, then run `python -m pip install -r requirements.txt` again.
+- Existing notes are missing after moving the project: Copy `database/app.db` with the project.
+- Attachments are missing after moving the project: Copy the `uploads` directory with `database/app.db`.
 
-## 🎯 Future Enhancements
+## Verification
 
-Potential improvements for future versions:
-- User authentication and multi-user support
-- Note categories and tags
-- Rich text formatting (bold, italic, lists)
-- File attachments
-- Export functionality (PDF, Markdown)
-- Dark/light theme toggle
-- Offline support with service workers
-- Note sharing capabilities
+Compile the Python modules and run a local smoke test:
 
----
-
-**Built with ❤️ using Flask, SQLite, and modern web technologies**
-
+```powershell
+python -m py_compile src/main.py src/translator.py src/routes/note.py
+python -c "from src.main import app; print(app.test_client().get('/').status_code)"
+```

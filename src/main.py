@@ -5,13 +5,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+from sqlalchemy import inspect, text
 from src.models.user import db
 from src.routes.user import user_bp
 from src.routes.note import note_bp
 from src.models.note import Note
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
-app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'development-only-change-me')
 
 # Enable CORS for all routes
 CORS(app)
@@ -22,14 +23,27 @@ app.register_blueprint(note_bp, url_prefix='/api')
 # configure database to use repository-root `database/app.db`
 ROOT_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 DB_PATH = os.path.join(ROOT_DIR, 'database', 'app.db')
+app.config['ROOT_DIR'] = ROOT_DIR
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 # ensure database directory exists
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{DB_PATH}"
+database_url = os.getenv('DATABASE_URL', f"sqlite:///{DB_PATH}")
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
+elif database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 with app.app_context():
     db.create_all()
+    inspector = inspect(db.engine)
+    if 'password_hash' not in {column['name'] for column in inspector.get_columns('user')}:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN password_hash VARCHAR(255)'))
+    if 'user_id' not in {column['name'] for column in inspector.get_columns('note')}:
+        db.session.execute(text('ALTER TABLE "note" ADD COLUMN user_id INTEGER'))
+    db.session.commit()
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')

@@ -1,23 +1,124 @@
-from flask import Blueprint, jsonify, request
-from src.models.note import Note, db
+import os
+import uuid
+
+from flask import Blueprint, current_app, jsonify, request, send_from_directory
+from werkzeug.utils import secure_filename
+
+from src.auth import login_required
+from src.models.note import Note, NoteAttachment, db
+from src.translator import SUPPORTED_LANGUAGES, translate_note
 
 note_bp = Blueprint('note', __name__)
 
+ALLOWED_ATTACHMENT_EXTENSIONS = {
+    'doc', 'docx', 'gif', 'jpeg', 'jpg', 'md', 'pdf', 'png', 'txt', 'webp', 'xlsx', 'zip'
+}
+
+
+def _attachment_directory():
+    directory = os.path.join(current_app.config['ROOT_DIR'], 'uploads')
+    os.makedirs(directory, exist_ok=True)
+    return directory
+
+
+def _is_allowed_attachment(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_ATTACHMENT_EXTENSIONS
+
+
+@note_bp.route('/notes/<int:note_id>/attachments', methods=['POST'])
+@login_required
+def upload_attachment(user, note_id):
+    note = Note.query.filter_by(id=note_id, user_id=user.id).first_or_404()
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or not uploaded_file.filename:
+        return jsonify({'error': 'Please choose an image or document'}), 400
+    if not _is_allowed_attachment(uploaded_file.filename):
+        return jsonify({'error': 'This file type is not supported'}), 400
+
+    original_name = secure_filename(uploaded_file.filename)
+    extension = os.path.splitext(original_name)[1].lower()
+    stored_name = f'{uuid.uuid4().hex}{extension}'
+    uploaded_file.save(os.path.join(_attachment_directory(), stored_name))
+    file_size = os.path.getsize(os.path.join(_attachment_directory(), stored_name))
+    attachment = NoteAttachment(
+        note=note,
+        original_name=original_name,
+        stored_name=stored_name,
+        content_type=uploaded_file.mimetype or 'application/octet-stream',
+        size=file_size,
+    )
+    db.session.add(attachment)
+    db.session.commit()
+    return jsonify(attachment.to_dict()), 201
+
+
+@note_bp.route('/attachments/<int:attachment_id>', methods=['GET'])
+@login_required
+def download_attachment(user, attachment_id):
+    attachment = NoteAttachment.query.join(Note).filter(
+        NoteAttachment.id == attachment_id,
+        Note.user_id == user.id,
+    ).first_or_404()
+    return send_from_directory(
+        _attachment_directory(),
+        attachment.stored_name,
+        as_attachment=False,
+        download_name=attachment.original_name,
+    )
+
+
+@note_bp.route('/attachments/<int:attachment_id>', methods=['DELETE'])
+@login_required
+def delete_attachment(user, attachment_id):
+    attachment = NoteAttachment.query.join(Note).filter(
+        NoteAttachment.id == attachment_id,
+        Note.user_id == user.id,
+    ).first_or_404()
+    file_path = os.path.join(_attachment_directory(), attachment.stored_name)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    db.session.delete(attachment)
+    db.session.commit()
+    return '', 204
+
+@note_bp.route('/translate', methods=['POST'])
+@login_required
+def translate(_user):
+    """Translate a note title and content into the selected language."""
+    data = request.get_json(silent=True) or {}
+    title = data.get('title', '')
+    content = data.get('content', '')
+    target_language = data.get('target_language', '')
+
+    if not isinstance(title, str) or not isinstance(content, str):
+        return jsonify({'error': 'Title and content must be text'}), 400
+    if target_language not in SUPPORTED_LANGUAGES:
+        return jsonify({'error': 'Please select a supported target language'}), 400
+    if not title.strip() and not content.strip():
+        return jsonify({'error': 'Please enter a title or content to translate'}), 400
+
+    try:
+        return jsonify(translate_note(title, content, target_language))
+    except Exception as error:
+        return jsonify({'error': str(error)}), 502
+
 @note_bp.route('/notes', methods=['GET'])
-def get_notes():
+@login_required
+def get_notes(user):
     """Get all notes, ordered by most recently updated"""
-    notes = Note.query.order_by(Note.updated_at.desc()).all()
+    notes = Note.query.filter_by(user_id=user.id).order_by(Note.updated_at.desc()).all()
     return jsonify([note.to_dict() for note in notes])
 
 @note_bp.route('/notes', methods=['POST'])
-def create_note():
+@login_required
+def create_note(user):
     """Create a new note"""
     try:
         data = request.json
         if not data or 'title' not in data or 'content' not in data:
             return jsonify({'error': 'Title and content are required'}), 400
         
-        note = Note(title=data['title'], content=data['content'])
+        note = Note(title=data['title'], content=data['content'], user_id=user.id)
         db.session.add(note)
         db.session.commit()
         return jsonify(note.to_dict()), 201
@@ -26,16 +127,18 @@ def create_note():
         return jsonify({'error': str(e)}), 500
 
 @note_bp.route('/notes/<int:note_id>', methods=['GET'])
-def get_note(note_id):
+@login_required
+def get_note(user, note_id):
     """Get a specific note by ID"""
-    note = Note.query.get_or_404(note_id)
+    note = Note.query.filter_by(id=note_id, user_id=user.id).first_or_404()
     return jsonify(note.to_dict())
 
 @note_bp.route('/notes/<int:note_id>', methods=['PUT'])
-def update_note(note_id):
+@login_required
+def update_note(user, note_id):
     """Update a specific note"""
     try:
-        note = Note.query.get_or_404(note_id)
+        note = Note.query.filter_by(id=note_id, user_id=user.id).first_or_404()
         data = request.json
         
         if not data:
@@ -50,10 +153,11 @@ def update_note(note_id):
         return jsonify({'error': str(e)}), 500
 
 @note_bp.route('/notes/<int:note_id>', methods=['DELETE'])
-def delete_note(note_id):
+@login_required
+def delete_note(user, note_id):
     """Delete a specific note"""
     try:
-        note = Note.query.get_or_404(note_id)
+        note = Note.query.filter_by(id=note_id, user_id=user.id).first_or_404()
         db.session.delete(note)
         db.session.commit()
         return '', 204
@@ -62,13 +166,15 @@ def delete_note(note_id):
         return jsonify({'error': str(e)}), 500
 
 @note_bp.route('/notes/search', methods=['GET'])
-def search_notes():
+@login_required
+def search_notes(user):
     """Search notes by title or content"""
     query = request.args.get('q', '')
     if not query:
         return jsonify([])
     
     notes = Note.query.filter(
+        Note.user_id == user.id,
         (Note.title.contains(query)) | (Note.content.contains(query))
     ).order_by(Note.updated_at.desc()).all()
     
