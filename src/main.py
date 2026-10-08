@@ -47,6 +47,11 @@ with app.app_context():
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN password_hash VARCHAR(255)'))
     if 'user_id' not in {column['name'] for column in inspector.get_columns('note')}:
         db.session.execute(text('ALTER TABLE "note" ADD COLUMN user_id INTEGER'))
+    if 'data' not in {column['name'] for column in inspector.get_columns('note_attachment')}:
+        attachment_data_type = 'BYTEA' if db.engine.dialect.name == 'postgresql' else 'BLOB'
+        db.session.execute(text(
+            f'ALTER TABLE "note_attachment" ADD COLUMN data {attachment_data_type}'
+        ))
     db.session.commit()
 
 @app.route('/', defaults={'path': ''})

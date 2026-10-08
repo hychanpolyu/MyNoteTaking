@@ -38,6 +38,7 @@ class NoteAttachment(db.Model):
     stored_name = db.Column(db.String(255), nullable=False, unique=True)
     content_type = db.Column(db.String(128), nullable=False)
     size = db.Column(db.Integer, nullable=False)
+    data = db.Column(db.LargeBinary, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):

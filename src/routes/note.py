@@ -1,7 +1,7 @@
-import os
 import uuid
+from io import BytesIO
 
-from flask import Blueprint, current_app, jsonify, request, send_from_directory
+from flask import Blueprint, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
 from src.auth import login_required
@@ -13,12 +13,6 @@ note_bp = Blueprint('note', __name__)
 ALLOWED_ATTACHMENT_EXTENSIONS = {
     'doc', 'docx', 'gif', 'jpeg', 'jpg', 'md', 'pdf', 'png', 'txt', 'webp', 'xlsx', 'zip'
 }
-
-
-def _attachment_directory():
-    directory = os.path.join(current_app.config['ROOT_DIR'], 'uploads')
-    os.makedirs(directory, exist_ok=True)
-    return directory
 
 
 def _is_allowed_attachment(filename):
@@ -36,16 +30,15 @@ def upload_attachment(user, note_id):
         return jsonify({'error': 'This file type is not supported'}), 400
 
     original_name = secure_filename(uploaded_file.filename)
-    extension = os.path.splitext(original_name)[1].lower()
-    stored_name = f'{uuid.uuid4().hex}{extension}'
-    uploaded_file.save(os.path.join(_attachment_directory(), stored_name))
-    file_size = os.path.getsize(os.path.join(_attachment_directory(), stored_name))
+    file_data = uploaded_file.read()
+    stored_name = uuid.uuid4().hex
     attachment = NoteAttachment(
         note=note,
         original_name=original_name,
         stored_name=stored_name,
         content_type=uploaded_file.mimetype or 'application/octet-stream',
-        size=file_size,
+        size=len(file_data),
+        data=file_data,
     )
     db.session.add(attachment)
     db.session.commit()
@@ -59,9 +52,11 @@ def download_attachment(user, attachment_id):
         NoteAttachment.id == attachment_id,
         Note.user_id == user.id,
     ).first_or_404()
-    return send_from_directory(
-        _attachment_directory(),
-        attachment.stored_name,
+    if attachment.data is None:
+        return jsonify({'error': 'This attachment is no longer available'}), 410
+    return send_file(
+        BytesIO(attachment.data),
+        mimetype=attachment.content_type,
         as_attachment=False,
         download_name=attachment.original_name,
     )
@@ -74,9 +69,6 @@ def delete_attachment(user, attachment_id):
         NoteAttachment.id == attachment_id,
         Note.user_id == user.id,
     ).first_or_404()
-    file_path = os.path.join(_attachment_directory(), attachment.stored_name)
-    if os.path.exists(file_path):
-        os.remove(file_path)
     db.session.delete(attachment)
     db.session.commit()
     return '', 204

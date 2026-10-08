@@ -168,7 +168,7 @@ python src/main.py
 
 The `psycopg` driver connects SQLAlchemy to Neon, and the tables are created on startup for this coursework app. For production, use Alembic migrations instead of relying on `db.create_all()`.
 
-Neon stores users, notes, and attachment metadata. The current attachment files are stored on the local disk under `uploads`, so a deployed server may lose them after restart. For production attachments, store the files in object storage such as S3, Cloudflare R2, or Supabase Storage and keep only the URL and metadata in Neon.
+Neon stores users, notes, attachment metadata, and the attachment bytes. This makes attachments persist across Vercel function restarts. For a larger production system, move large files to object storage such as S3, Cloudflare R2, or Supabase Storage and keep only the URL and metadata in Neon.
 
 ## Vercel Deployment
 
@@ -205,9 +205,9 @@ After saving the variables, choose **Redeploy** in Vercel. Test registration fir
 
 The Vercel URL will be similar to `https://your-project.vercel.app`.
 
-### Vercel attachment warning
+### Vercel attachment note
 
-Vercel serverless functions have ephemeral local storage. The current attachment implementation writes files to `uploads`, which is suitable locally but not reliable on Vercel. Before depending on attachments in production, upload files to Vercel Blob or S3-compatible object storage and save only the returned URL and metadata in Neon.
+Vercel serverless functions have ephemeral local storage. Attachments are therefore stored in Neon rather than under a local `uploads` directory. Neon database storage is convenient for this coursework app; for many or very large files, use Vercel Blob or S3-compatible object storage instead.
 
 ## Troubleshooting
 

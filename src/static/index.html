@@ -842,7 +842,7 @@
                         method: 'POST',
                         body: formData
                     });
-                    const result = await response.json();
+                    const result = await response.json().catch(() => ({}));
                     if (!response.ok) throw new Error(result.error || 'Attachment upload failed');
                     this.currentNote.attachments = [...(this.currentNote.attachments || []), result];
                     const noteIndex = this.notes.findIndex(note => note.id === this.currentNote.id);
