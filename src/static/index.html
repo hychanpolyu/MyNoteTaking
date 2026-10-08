@@ -807,9 +807,13 @@
                     document.getElementById('editorTitle').textContent = result.title || 'Untitled Note';
                     this.showMessage('Note translated successfully. Click Save to keep the translation.', 'success');
                 } catch (error) {
-                    const message = error.message === 'Failed to fetch'
-                        ? 'Cannot reach the Flask server. Start it with: python src/main.py'
-                        : `Error translating note: ${error.message}`;
+                    const isProviderOverloaded = error.message.includes('provider_overloaded')
+                        || error.message.includes('Service temporarily overloaded');
+                    const message = isProviderOverloaded
+                        ? 'API service overloaded. Please try later'
+                        : error.message === 'Failed to fetch'
+                            ? 'Cannot reach the Flask server. Start it with: python src/main.py'
+                            : `Error translating note: ${error.message}`;
                     this.showMessage(message, 'error');
                 } finally {
                     this.isTranslating = false;
