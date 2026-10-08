@@ -170,6 +170,45 @@ The `psycopg` driver connects SQLAlchemy to Neon, and the tables are created on 
 
 Neon stores users, notes, and attachment metadata. The current attachment files are stored on the local disk under `uploads`, so a deployed server may lose them after restart. For production attachments, store the files in object storage such as S3, Cloudflare R2, or Supabase Storage and keep only the URL and metadata in Neon.
 
+## Vercel Deployment
+
+The repository includes `vercel.json` and `api/index.py` for deploying this Flask app as a Vercel Python function.
+
+### 1. Push the project to GitHub
+
+Commit the source code, but do not commit `.env`, `database/app.db`, or uploaded files. They are already ignored by Git.
+
+### 2. Import the repository in Vercel
+
+1. Open the Vercel dashboard and choose **Add New Project**.
+2. Import the GitHub repository.
+3. Leave the framework preset as **Other**.
+4. Keep the project root at the repository root.
+5. Deploy after adding the environment variables below.
+
+### 3. Add Vercel environment variables
+
+In **Project Settings > Environment Variables**, add these for Production, Preview, and Development as appropriate:
+
+```text
+DATABASE_URL=postgresql://user:password@host/database?sslmode=require
+SECRET_KEY=a-long-random-secret-value
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
+```
+
+Use Neon’s pooled connection string for `DATABASE_URL`. Do not put these values in frontend JavaScript or commit them to GitHub.
+
+### 4. Redeploy and test
+
+After saving the variables, choose **Redeploy** in Vercel. Test registration first, then create a note and refresh the page to confirm that the note is persisted in Neon.
+
+The Vercel URL will be similar to `https://your-project.vercel.app`.
+
+### Vercel attachment warning
+
+Vercel serverless functions have ephemeral local storage. The current attachment implementation writes files to `uploads`, which is suitable locally but not reliable on Vercel. Before depending on attachments in production, upload files to Vercel Blob or S3-compatible object storage and save only the returned URL and metadata in Neon.
+
 ## Troubleshooting
 
 - `OPENROUTER_API_KEY is not configured`: Check that `.env` is in the project root and that the environment is active.
